@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>ILHOS DLab</title>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    display: flex;
+    height: 100vh;
+}
+
+/* 좌측 사이드바 */
+#sidebar {
+    width: 220px;
+    background: #2c3e50;
+    color: white;
+    transition: width 0.3s;
+    overflow: hidden;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+}
+#sidebar.collapsed { width: 60px; }
+
+/* 로고 */
+#logo-area {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: #1a252f;
+}
+#toggle-btn {
+    cursor: pointer;
+    margin-right: 10px;
+    padding: 5px;
+    background: #34495e;
+    border-radius: 5px;
+    width: 25px;
+    text-align: center;
+}
+
+/* 메뉴 */
+#menu-container {
+    padding-top: 50px;
+}
+.menu-item {
+    padding: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    position: relative;
+}
+.menu-item:hover { background: #34495e; }
+.sub-menu { 
+    margin-left: 15px;
+    display: none; 
+}
+.menu-item.has-children::after {
+    content: '▶';
+    position: absolute;
+    right: 10px;
+    font-size: 0.8em;
+    transition: transform 0.2s;
+}
+.menu-item.open::after { transform: rotate(90deg); }
+
+/* 축소 시 메뉴 */
+#sidebar.collapsed .menu-item { text-align: center; padding: 10px 0; }
+#sidebar.collapsed .menu-item.has-children::after {
+    right: 50%;
+    transform: translateX(50%);
+}
+#sidebar.collapsed .menu-item span.label { display: none; }
+#sidebar.collapsed .sub-menu { display: none !important; }
+
+/* 우측 메인 */
+#main {
+    margin-left: 220px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    transition: margin-left 0.3s;
+}
+#sidebar.collapsed + #main { margin-left: 60px; }
+
+/* 상단 사용자 정보 */
+#header {
+    height: 40px;
+    background: #ecf0f1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0 15px;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    z-index: 1000;
+}
+
+/* 탭 */
+#tab-bar {
+    display: flex;
+    background: #ecf0f1;
+    padding: 5px;
+    overflow-x: auto;
+}
+.tab {
+    padding: 8px 15px;
+    background: white;
+    margin-right: 5px;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+.tab.active { background: #3498db; color: white; }
+.tab span.close-btn { margin-left: 10px; cursor: pointer; }
+
+/* 드래그 */
+.tab-ghost { opacity: 0.4; }
+.tab-chosen { background: #d0e6ff; }
+.tab-drag { transform: rotate(2deg); }
+
+/* 컨텐츠 */
+#content-area {
+    flex: 1;
+    position: relative;
+}
+.content-frame {
+    display: none;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="sidebar">
+    <div id="logo-area">
+        <div id="toggle-btn" onclick="toggleMenu()">☰</div>
+        <div>DLab</div>
+    </div>
+    <div id="menu-container"></div>
+</div>
+
+<div id="main">
+    <div id="header">
+        <div id="user-info">
+            <span id="username"></span>님 환영합니다.
+            <button onclick="logout()">로그아웃</button>
+        </div>
+    </div>
+    <div id="tab-bar"></div>
+    <div id="content-area"></div>
+</div>
+
+<script>
+// 로그인 연동
+const username = sessionStorage.getItem('username') || '사용자';
+document.getElementById('username').innerText = username;
+function logout(){ sessionStorage.clear(); location.href='login.html'; }
+
+// 메뉴 토글
+function toggleMenu(){ document.getElementById('sidebar').classList.toggle('collapsed'); }
+
+// 메뉴 로드
+async function loadMenu(){
+    const res = await fetch('/api/menu');
+    const data = await res.json();
+    buildMenu(data, null, document.getElementById('menu-container'));
+}
+
+// 드릴다운 메뉴
+function buildMenu(data, parentId, container){
+    data.filter(item => (item.parent_id ?? null) === parentId).forEach(item=>{
+        const div = document.createElement('div');
+        div.className = 'menu-item';
+        div.innerHTML = `<span class="label">${item.menu_name}</span>`;
+
+        const children = data.filter(d=>d.parent_id===item.menu_id);
+        if(children.length>0){
+            div.classList.add('has-children');
+            const sub = document.createElement('div');
+            sub.className='sub-menu';
+            container.appendChild(div);
+            container.appendChild(sub);
+
+            div.onclick = () => {
+                div.classList.toggle('open');
+                sub.style.display = (sub.style.display==='block')?'none':'block';
+            }
+            buildMenu(data,item.menu_id,sub);
+        } else {
+            div.onclick = () => openTab(item.menu_id,item.menu_name,item.url);
+            container.appendChild(div);
+        }
+    });
+}
+
+// 탭 관리
+function saveTabs(){
+    const tabs=[];
+    document.querySelectorAll('.tab').forEach(tab=>{
+        const menuId = tab.id.replace('tab-','');
+        const iframe=document.getElementById('content-'+menuId);
+        tabs.push({menuId,menuName:tab.childNodes[0].textContent.trim(),url:iframe.src});
+    });
+    localStorage.setItem('tabs',JSON.stringify(tabs));
+}
+
+function openTab(menuId,menuName,url,skipSave=false){
+    if(!url) return;
+    if(document.getElementById('tab-'+menuId)){ activateTab(menuId); return; }
+
+    const tab=document.createElement('div');
+    tab.className='tab';
+    tab.id='tab-'+menuId;
+    tab.innerHTML=`${menuName}<span class="close-btn" onclick="event.stopPropagation(); closeTab('${menuId}')">✖</span>`;
+    tab.onclick=()=>activateTab(menuId);
+    document.getElementById('tab-bar').appendChild(tab);
+
+    const iframe=document.createElement('iframe');
+    iframe.src=url;
+    iframe.className='content-frame';
+    iframe.id='content-'+menuId;
+    document.getElementById('content-area').appendChild(iframe);
+
+    activateTab(menuId);
+    if(!skipSave) saveTabs();
+}
+
+function activateTab(menuId){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById('tab-'+menuId).classList.add('active');
+    document.querySelectorAll('.content-frame').forEach(c=>c.style.display='none');
+    document.getElementById('content-'+menuId).style.display='block';
+    localStorage.setItem('activeTab',menuId);
+}
+
+function closeTab(menuId){
+    document.getElementById('tab-'+menuId).remove();
+    document.getElementById('content-'+menuId).remove();
+    saveTabs();
+}
+
+// 탭 드래그
+new Sortable(document.getElementById('tab-bar'),{
+    animation:150, ghostClass:'tab-ghost', chosenClass:'tab-chosen', dragClass:'tab-drag',
+    onEnd:function(){
+        const order=[...document.querySelectorAll('.tab')].map(tab=>tab.id.replace('tab-',''));
+        localStorage.setItem('tabOrder',JSON.stringify(order));
+    }
+});
+
+// 탭 복원
+function restoreTabs(){
+    const tabs=JSON.parse(localStorage.getItem('tabs')||'[]');
+    const order=JSON.parse(localStorage.getItem('tabOrder')||'[]');
+    const activeTab=localStorage.getItem('activeTab');
+    if(tabs.length===0) return;
+    const orderedTabs=order.length>0?order.map(id=>tabs.find(t=>t.menuId===id)).filter(Boolean):tabs;
+    orderedTabs.forEach(tab=>openTab(tab.menuId,tab.menuName,tab.url,true));
+    if(activeTab) activateTab(activeTab);
+}
+
+// 실행
+loadMenu();
+restoreTabs();
+</script>
+</body>
+</html>

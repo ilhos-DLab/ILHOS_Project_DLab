@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ILHOS DLab</title>
+</head>
+<body>
+
+<h2>SQL 실행기</h2>
+
+<form method="POST">
+    <textarea name="query" rows="5" cols="60">{{ query }}</textarea><br>
+    <button type="submit">실행</button>
+</form>
+
+<hr>
+
+{% if results %}
+<table border="1">
+    <tr>
+        {% for col in results.columns %}
+        <th>{{ col }}</th>
+        {% endfor %}
+    </tr>
+
+    {% for row in results.rows %}
+    <tr>
+        {% for col in row %}
+        <td>{{ col }}</td>
+        {% endfor %}
+    </tr>
+    {% endfor %}
+</table>
+{% endif %}
+
+</body>
+</html>

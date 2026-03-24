@@ -1,0 +1,7 @@
+PROJECT_NAME = "ILHOS_Project_DLab"
+APP_TITLE = "D-Lab System"
+APP_VERSION = "0.1.0"
+
+DEFAULT_ADMIN_ID = "admin"
+DEFAULT_ADMIN_NAME = "Administrator"
+DEFAULT_ADMIN_PASSWORD = "admin1234"
