@@ -5,3 +5,4 @@ __pycache__/
 .streamlit/secrets.toml
 *.pyc
 logs/
+정리문서/
